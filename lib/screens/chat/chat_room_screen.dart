@@ -13,8 +13,9 @@ class ChatRoomScreen extends StatefulWidget {
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-class _ChatRoomScreenState extends State<ChatRoomScreen> with SingleTickerProviderStateMixin {
-  final _messageController = TextEditingController();
+class _ChatRoomScreenState extends State<ChatRoomScreen>
+    with SingleTickerProviderStateMixin {
+  final TextEditingController _messageController = TextEditingController();
   late TabController _tabController;
 
   @override
@@ -25,17 +26,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final chatProvider = Provider.of<ChatProvider>(context);
-    // Find room safely
+    final chatProvider = context.watch<ChatProvider>();
+    final auth = context.read<AuthProvider>();
+    final user = auth.user;
+
     final room = chatProvider.rooms.firstWhere(
       (r) => r.id == widget.roomId,
-      orElse: () => ChatRoom(id: '', name: 'Error', createdBy: '', participants: []),
+      orElse: () =>
+          ChatRoom(id: '', name: 'Error', createdBy: '', participants: []),
     );
 
-    if (room.id.isEmpty) return const Scaffold(body: Center(child: Text('Room not found')));
+    if (room.id.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('Room not found')),
+      );
+    }
 
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    final user = auth.user;
+    final bottomSystemPadding = MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
       appBar: AppBar(
@@ -48,137 +55,180 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> with SingleTickerProvid
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // Chat Tab
-          Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  reverse: true, // To show latest at bottom if we reversed list, but here we append.
-                  // Better to reverse list or use reverse: true and insert at 0.
-                  // For simplicity, let's just show as is, but scroll to bottom.
-                  // Or use reverse: true and reverse the list in builder.
-                  itemCount: room.messages.length,
-                  itemBuilder: (context, index) {
-                    // Show latest at bottom
-                    final msg = room.messages[index];
-                    final isMe = msg.senderId == user?.id;
-                    return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isMe ? Colors.blue[100] : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(8),
+      body: SafeArea(
+        bottom: true,
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            /// CHAT TAB
+            Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: room.messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = room.messages[index];
+                      final isMe = msg.senderId == user?.id;
+
+                      return Align(
+                        alignment:
+                            isMe ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color:
+                                isMe ? Colors.blue[100] : Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                msg.senderName,
+                                style: const TextStyle(
+                                    fontSize: 10, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(msg.text),
+                            ],
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(msg.senderName, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                            Text(msg.text),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        decoration: const InputDecoration(hintText: 'Type a message...'),
+
+                /// MESSAGE INPUT
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    12,
+                    8,
+                    12,
+                    bottomSystemPadding + 12, // 👈 Android nav bar fix
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          minLines: 1,
+                          maxLines: 4,
+                          decoration: InputDecoration(
+                            hintText: 'Type a message...',
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.send),
-                      onPressed: () {
-                        if (_messageController.text.isNotEmpty) {
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.send,
+                            color: Color(0xFF6366F1)),
+                        onPressed: () {
+                          if (_messageController.text.trim().isEmpty) return;
+
                           chatProvider.sendMessage(
                             room.id,
                             user!.id,
                             user.name,
-                            _messageController.text,
+                            _messageController.text.trim(),
                           );
                           _messageController.clear();
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          // Shared Content Tab
-          Column(
-            children: [
-              if (user?.role.toString() == 'UserRole.teacher') // Check role properly
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // Add content dialog
-                      _showAddContentDialog(context, room.id);
-                    },
-                    child: const Text('Share Content'),
+                        },
+                      ),
+                    ],
                   ),
                 ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: room.sharedContent.length,
-                  itemBuilder: (context, index) {
-                    final content = room.sharedContent[index];
-                    return ListTile(
-                      leading: Icon(content.type == 'file' ? Icons.attach_file : Icons.link),
-                      title: Text(content.title),
-                      subtitle: Text(content.url),
-                      onTap: () {
-                        // Open content
-                      },
-                    );
-                  },
+              ],
+            ),
+
+            /// SHARED CONTENT TAB
+            Column(
+              children: [
+                if (user?.role.toString() == 'UserRole.teacher')
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: ElevatedButton(
+                      onPressed: () =>
+                          _showAddContentDialog(context, room.id),
+                      child: const Text('Share Content'),
+                    ),
+                  ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: EdgeInsets.fromLTRB(
+                      8,
+                      8,
+                      8,
+                      bottomSystemPadding + 12,
+                    ),
+                    itemCount: room.sharedContent.length,
+                    itemBuilder: (context, index) {
+                      final content = room.sharedContent[index];
+                      return ListTile(
+                        leading: Icon(
+                          content.type == 'file'
+                              ? Icons.attach_file
+                              : Icons.link,
+                        ),
+                        title: Text(content.title),
+                        subtitle: Text(content.url),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  /// ADD CONTENT DIALOG
   void _showAddContentDialog(BuildContext context, String roomId) {
     final titleController = TextEditingController();
     final urlController = TextEditingController();
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (_) => AlertDialog(
         title: const Text('Share Content'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title')),
-            TextField(controller: urlController, decoration: const InputDecoration(labelText: 'URL/Description')),
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            TextField(
+              controller: urlController,
+              decoration:
+                  const InputDecoration(labelText: 'URL / Description'),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () {
-              if (titleController.text.isNotEmpty) {
-                Provider.of<ChatProvider>(context, listen: false).addSharedContent(
-                  roomId,
-                  titleController.text,
-                  urlController.text,
-                  'link',
-                );
-                Navigator.pop(context);
-              }
+              if (titleController.text.trim().isEmpty) return;
+
+              context.read<ChatProvider>().addSharedContent(
+                    roomId,
+                    titleController.text.trim(),
+                    urlController.text.trim(),
+                    'link',
+                  );
+              Navigator.pop(context);
             },
             child: const Text('Share'),
           ),

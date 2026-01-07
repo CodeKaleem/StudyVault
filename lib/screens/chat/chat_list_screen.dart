@@ -16,24 +16,31 @@ class ChatListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Chat Rooms')),
-      body: ListView.builder(
-        itemCount: chatProvider.rooms.length,
-        itemBuilder: (context, index) {
-          final room = chatProvider.rooms[index];
-          return ListTile(
-            leading: const Icon(Icons.group),
-            title: Text(room.name),
-            subtitle: Text('Created by: ${room.createdBy == user?.id ? "You" : "Teacher"}'),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatRoomScreen(roomId: room.id),
-                ),
-              );
-            },
-          );
-        },
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: chatProvider.rooms.length,
+              itemBuilder: (context, index) {
+                final room = chatProvider.rooms[index];
+                return ListTile(
+                  leading: const Icon(Icons.group),
+                  title: Text(room.name),
+                  subtitle: Text('Created by: ${room.createdBy == user?.id ? "You" : "Teacher"}'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatRoomScreen(roomId: room.id),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          SizedBox(height: MediaQuery.of(context).viewInsets.bottom > 0 ? MediaQuery.of(context).viewInsets.bottom : 16),
+        ],
       ),
       floatingActionButton: user?.role == UserRole.teacher
           ? FloatingActionButton(
